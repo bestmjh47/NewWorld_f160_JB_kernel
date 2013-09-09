@@ -2481,7 +2481,7 @@ config FORCE_FAST_CHARGE
     are detected as USB to charge as AC.
 config GPU_OVERCLOCK
        bool "Enable GPU Overclocking option"
-       default n
+       default t
        help
           Adreno2xx overclocking up to 480 MHz
 config INTELLI_PLUG
@@ -2489,6 +2489,10 @@ config INTELLI_PLUG
        default n
        help
          Generic Intelli-plug cpu hotplug driver for ARM SOCs
-
+config CPU_OVERCLOCK
+	bool "Enable CPU Overclocking option"
+	default y
+	help
+	  acpuclock8960(msm8960) overclock to 1728 MHz
 
 endif
