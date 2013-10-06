@@ -12,10 +12,10 @@
 
 ODIR=../build_d1l
 image_filename="$ODIR/arch/arm/boot/zImage"
-TOOLCHAIN=../linaro/bin/arm-eabi-
+TOOLCHAIN=../../../linaro/bin/arm-eabi-
 
 export ARCH=arm
-export toolchain=../linaro/bin/arm-eabi-
+export toolchain=../../../linaro/bin/arm-eabi-
 KERNEL_DEFCONFIG=d1lu-perf_defconfig
 
 if [ ! -d $ODIR ]; then
