@@ -111,10 +111,6 @@ DEFINE_MUTEX(sched_domains_mutex);
 DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
 
 static void update_rq_clock_task(struct rq *rq, s64 delta);
-unsigned long avg_nr_running(void)
-{
-	return nr_running();
-}
 
 void update_rq_clock(struct rq *rq)
 {
