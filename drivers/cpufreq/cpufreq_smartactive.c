@@ -70,10 +70,14 @@ static void do_dbs_timer(struct work_struct *work);
 // If NOT Defined, or can't use, working as performance
 // see dbs_check function
 int available_freq_table[] = 
-{ 162000, 216000, 270000, 324000, 378000, 384000, 486000, 594000,
+{ 
+#ifdef CONFIG_LOW_CPU_CLOCK
+167000, 216000, 270000, 316000, 
+#endif
+384000, 486000, 594000,
 702000, 810000, 918000, 1026000, 1134000, 1242000, 1350000, 1458000, 1512000
 #ifdef CONFIG_CPU_OVERCLOCK
-,1566000, 1674000, 1728000
+,1674000, 1728000
 #endif
 };
 
