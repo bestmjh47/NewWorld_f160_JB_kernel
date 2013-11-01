@@ -2494,5 +2494,9 @@ config CPU_OVERCLOCK
 	default y
 	help
 	  acpuclock8960(msm8960) overclock to 1728 MHz
-
+config LOW_CPU_CLOCK
+	bool "Enable CPU Low clock option"
+	default y
+	help
+	  acpuclock8960(msm8960) low clocks
 endif
