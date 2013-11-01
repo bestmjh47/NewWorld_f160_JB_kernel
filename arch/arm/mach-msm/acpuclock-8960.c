@@ -132,9 +132,9 @@ static struct l2_level l2_freq_tbl[] __initdata = {
 static struct acpu_level acpu_freq_tbl_slow[] __initdata = {
 #ifdef CONFIG_LOW_CPU_CLOCK
 	{ 1, {   167000, HFPLL, 2, 0, 0x00 }, L2(0),   900000 },
-	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   912500 },
+	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   900000 },
 	{ 1, {   270000, HFPLL, 2, 0, 0x00 }, L2(0),   925000 },
-	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(1),   937500 },
+	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(1),   925000 },
 #endif
 	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(0),   950000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(6),   975000 },
@@ -168,9 +168,9 @@ static struct acpu_level acpu_freq_tbl_slow[] __initdata = {
 static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
 #ifdef CONFIG_LOW_CPU_CLOCK
 	{ 1, {   167000, HFPLL, 2, 0, 0x00 }, L2(0),   850000 },
-	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   862500 },
+	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   850000 },
 	{ 1, {   270000, HFPLL, 2, 0, 0x00 }, L2(0),   875000 },
-	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(1),   887500 },
+	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(1),   875000 },
 #endif
 	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(0),   900000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(6),   925000 },
@@ -204,9 +204,9 @@ static struct acpu_level acpu_freq_tbl_nom[] __initdata = {
 static struct acpu_level acpu_freq_tbl_fast[] __initdata = {
 #ifdef CONFIG_LOW_CPU_CLOCK
 	{ 1, {   167000, HFPLL, 2, 0, 0x00 }, L2(0),   800000 },
-	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   812500 },
+	{ 0, {   216000, HFPLL, 2, 0, 0x00 }, L2(0),   800000 },
 	{ 1, {   270000, HFPLL, 2, 0, 0x00 }, L2(0),   825000 },
-	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(0),   837500 },
+	{ 0, {   316000, HFPLL, 0, 2, 0x00 }, L2(0),   825000 },
 #endif
 	{ 1, {   384000, PLL_8, 0, 2, 0x00 }, L2(0),   850000 },
 	{ 0, {   432000, HFPLL, 2, 0, 0x20 }, L2(6),   875000 },
