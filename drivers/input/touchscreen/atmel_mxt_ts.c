@@ -286,6 +286,13 @@ enum mxt_device_state { INIT, APPMODE, BOOTLOADER };
 #define MXT_DEBUGFS_DIR		"atmel_mxt_ts"
 #define MXT_DEBUGFS_FILE	"object"
 
+static bool ktoonservative_is_activef = false;
+
+void ktoonservative_is_active(bool val)
+{
+	ktoonservative_is_activef = val;
+}
+
 struct mxt_info {
 	u8 family_id;
 	u8 variant_id;
