@@ -87,7 +87,6 @@ enum {
 #define AGC_FIXED_GAIN			13
 
 #ifdef CONFIG_LGE_AUDIO_TPA2028D
-	/* Add the I2C driver for Audio Amp, ehgrace.kim@lge.cim, 06/13/2011 */
 #define MSM_8960_GSBI9_QUP_I2C_BUS_ID 9
 #endif
 

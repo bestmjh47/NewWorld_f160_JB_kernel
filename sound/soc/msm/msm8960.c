@@ -29,7 +29,6 @@
 #include "../codecs/wcd9310.h"
 
 #ifdef CONFIG_LGE_AUDIO_TPA2028D
-	/* Add the I2C driver for Audio Amp, ehgrace.kim@lge.cim, 06/13/2011 */
 #include <sound/tpa2028d.h>
 #endif
 /* 8960 machine driver */
@@ -636,7 +635,6 @@ static const struct snd_soc_dapm_route common_audio_map[] = {
 };
 
 #ifdef CONFIG_LGE_AUDIO
-	/* enable handset sub mic, ehgrace.kim@lge.cim, 08/15/2011 */
 static const struct snd_soc_dapm_route handset_submic_audio_map[] = {
 	{"AMIC3", NULL, "MIC BIAS3 External"},
 	{"MIC BIAS3 External", NULL, "Handset SubMic"},
@@ -1043,11 +1041,6 @@ static int msm8960_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	codec_clk = clk_get(cpu_dai->dev, "osr_clk");
 
 #ifdef CONFIG_SWITCH_FSA8008
-/*
- * If using fsa8008 headset driver,
- * disable the qualcomm configuration
- * ehgrace.kim@lge.cim, 08/07/2011
-*/
 		tabla_register_mclk_call_back(codec, msm8960_enable_codec_ext_clk);
 #else /*MBHC*/
 	if (machine_is_msm8960_cdp())
@@ -1814,11 +1807,6 @@ static void msm8960_free_headset_mic_gpios(void)
 {
 	if (msm8960_headset_gpios_configured) {
 #ifndef CONFIG_SWITCH_FSA8008
-/*
- * If using fsa8008 headset driver,
- * disable the qualcomm configuration
- * ehgrace.kim@lge.cim, 08/07/2011
- */
 		gpio_free(PM8921_GPIO_PM_TO_SYS(23));
 		gpio_free(us_euro_sel_gpio);
 #endif
@@ -1881,11 +1869,6 @@ static int __init msm8960_audio_init(void)
 	}
 
 #ifdef CONFIG_SWITCH_FSA8008
-/*
- * If using fsa8008 headset driver,
- * disable the qualcomm configuration
- * ehgrace.kim@lge.cim, 08/07/2011
-*/
 	msm8960_headset_gpios_configured = 1;
 #else /*MBHC*/
 	if (msm8960_configure_headset_mic_gpios()) {

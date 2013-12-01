@@ -61,9 +61,6 @@ endef
 $(KERNEL_OUT):
 	mkdir -p $(KERNEL_OUT)
 
-# LGE_CHANGE_S
-# porting bootchart2 to android
-# byungchul.park@lge.com 20120620
 ifeq ($(INIT_BOOTCHART2),true)
 KERNEL_DEFCONFIG_PATH:=kernel/arch/arm/configs/$(KERNEL_DEFCONFIG)
 KERNEL_DEFCONFIG_BC2_PATH:=kernel/arch/arm/configs/bc2_$(KERNEL_DEFCONFIG)
@@ -80,16 +77,11 @@ bootchart2defconfig:
 $(KERNEL_CONFIG): $(KERNEL_OUT) bootchart2defconfig
 	$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=arm CROSS_COMPILE=arm-eabi- bc2_$(KERNEL_DEFCONFIG)
 else
-# LGE_CHANGE_E
 
 $(KERNEL_CONFIG): $(KERNEL_OUT)
 	$(MAKE) -C kernel O=../$(KERNEL_OUT) ARCH=arm CROSS_COMPILE=arm-eabi- $(KERNEL_DEFCONFIG)
 
-# LGE_CHANGE_S
-# porting bootchart2 to android
-# byungchul.park@lge.com 20120620
 endif
-# LGE_CHANGE_E
 
 $(KERNEL_OUT)/piggy : $(TARGET_PREBUILT_INT_KERNEL)
 	$(hide) gunzip -c $(KERNEL_OUT)/arch/arm/boot/compressed/piggy.gzip > $(KERNEL_OUT)/piggy

@@ -501,6 +501,19 @@ static struct msm_camera_gpio_conf msm_8960_back_cam_gpio_conf = {
 	.cam_gpio_set_tbl_size = ARRAY_SIZE(msm8960_back_cam_gpio_set_tbl),
 };
 
+#ifdef CONFIG_IMX111_ACT
+static struct i2c_board_info imx111_actuator_i2c_info = {
+	I2C_BOARD_INFO("msm_actuator", I2C_SLAVE_ADDR_IMX111_ACT), /* 0x18 */
+};
+
+static struct msm_actuator_info imx111_actuator_info = {
+	.board_info     = &imx111_actuator_i2c_info,
+	.bus_id         = MSM_8960_GSBI4_QUP_I2C_BUS_ID,
+	.cam_name		= MSM_ACTUATOR_MAIN_CAM_1,
+	.vcm_pwd        = 0,
+	.vcm_enable     = 1,
+};
+#else
 static struct i2c_board_info msm_act_main_cam_i2c_info = {
 	I2C_BOARD_INFO("msm_actuator", 0x18),
 };
@@ -512,7 +525,7 @@ static struct msm_actuator_info msm_act_main_cam_0_info = {
 	.vcm_pwd        = 0,
 	.vcm_enable     = 1,
 };
-
+#endif
 /*
 static struct i2c_board_info msm_act_main_cam1_i2c_info = {
 	I2C_BOARD_INFO("msm_actuator", 0x18),
@@ -571,7 +584,11 @@ static struct msm_camera_sensor_info msm_camera_sensor_imx111_data = {
 	.csi_if	= 1,
 	.camera_type = BACK_CAMERA_2D,
 	.sensor_type = BAYER_SENSOR,
+#ifdef CONFIG_IMX111_ACT
+	.actuator_info = &imx111_actuator_info,
+#else
 	.actuator_info = &msm_act_main_cam_0_info,
+#endif
 //	.eeprom_info = &imx111_eeprom_info,
 };
 #endif /* CONFIG_IMX111 */
