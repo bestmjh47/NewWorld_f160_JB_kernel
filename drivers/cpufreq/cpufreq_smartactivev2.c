@@ -1,5 +1,5 @@
 /*
-*  drivers/cpufreq/cpufreq_smartactive.c
+*  drivers/cpufreq/cpufreq_smartactivev2.c
 *  Auther : NewWorld(cae11cae@naver.com)
 *  based on governor Conservative, Authers :
 *
@@ -25,21 +25,24 @@
 #include <linux/tick.h>
 #include <linux/ktime.h>
 #include <linux/sched.h>
-#ifdef CONFIG_EARLYSUSPEND
 #include <linux/earlysuspend.h>
-#endif
 
+/* On / off debug */
+//#define SMARTACTIVEV2_DEBUG
+#undef SMARTACTIVEV2_DEBUG
 /*
  * dbs is used in this file as a shortform for demandbased switching
  * It helps to keep variable names smaller, simpler
  */
-#define DEF_FREQUENCY_UP_THRESHOLD		(80)
-#define DEF_FREQUENCY_DOWN_THRESHOLD		(20)
-#define DEF_UP_FREQ_STEP				(1)
-#define DEF_DOWN_FREQ_STEP			(1)
-#define DEF_ACTIVE_FREQ_STEP			(10)
+#define DEF_AWAKE_UP_THRESHOLD			(80)
+#define DEF_AWAKE_DOWN_THRESHOLD		(20)
+#define DEF_AWAKE_UP_FREQ_STEP			(1)
+#define DEF_AWAKE_DOWN_FREQ_STEP		(2)
+#define DEF_ASLEEP_UP_THRESHOLD		(90)
+#define DEF_ASLEEP_DOWN_THRESHOLD		(30)
+#define DEF_ASLEEP_UP_FREQ_STEP		(1)
+#define DEF_ASLEEP_DOWN_FREQ_STEP		(5)
 #define DEF_SAMPLING_RATE			(40000)
-#define DEF_UP_THRESHOLD_ONE_CORE		(65)
 
 #define MIN_SAMPLING_RATE			(10000)
 /*
@@ -58,12 +61,12 @@
 #define DEF_SAMPLING_DOWN_FACTOR		(1)
 #define MAX_SAMPLING_DOWN_FACTOR		(10)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
-//early suspend varablies
-#ifdef CONFIG_EARLYSUSPEND
-static unsigned long stored_sampling_rate;
-#endif
 
 static unsigned int is_early_suspend = 0;
+int up_threshold = DEF_AWAKE_UP_THRESHOLD;
+int down_threshold = DEF_AWAKE_DOWN_THRESHOLD;
+int up_freq_step = DEF_AWAKE_UP_FREQ_STEP;
+int down_freq_step = DEF_AWAKE_DOWN_FREQ_STEP;
 
 static void do_dbs_timer(struct work_struct *work);
 
@@ -96,20 +99,26 @@ static DEFINE_MUTEX(dbs_mutex);
 static struct dbs_tuners {
 	unsigned int sampling_rate;
 	unsigned int sampling_down_factor;
-	unsigned int up_threshold;
-	unsigned int down_threshold;
 	unsigned int ignore_nice;
-	unsigned int up_freq_step;
-	unsigned int down_freq_step;
-	unsigned int active_freq_step;
+	unsigned int up_threshold_awake;
+	unsigned int down_threshold_awake;
+	unsigned int up_threshold_asleep;
+	unsigned int down_threshold_asleep;
+	unsigned int up_freq_step_awake;
+	unsigned int down_freq_step_awake;
+	unsigned int up_freq_step_asleep;
+	unsigned int down_freq_step_asleep;
 } dbs_tuners_ins = {
 	.sampling_down_factor = DEF_SAMPLING_DOWN_FACTOR,
 	.ignore_nice = 0,
-	.active_freq_step = DEF_ACTIVE_FREQ_STEP,
-	.up_freq_step = DEF_UP_FREQ_STEP,
-	.down_freq_step = DEF_DOWN_FREQ_STEP,
-	.up_threshold = DEF_FREQUENCY_UP_THRESHOLD,
-	.down_threshold = DEF_FREQUENCY_DOWN_THRESHOLD,
+	.up_freq_step_awake = DEF_AWAKE_UP_FREQ_STEP,
+	.down_freq_step_awake = DEF_AWAKE_DOWN_FREQ_STEP,
+	.up_freq_step_asleep = DEF_ASLEEP_UP_FREQ_STEP,
+	.down_freq_step_asleep = DEF_ASLEEP_DOWN_FREQ_STEP,
+	.up_threshold_awake = DEF_AWAKE_UP_THRESHOLD,
+	.down_threshold_awake = DEF_AWAKE_DOWN_THRESHOLD,
+	.up_threshold_asleep = DEF_ASLEEP_UP_THRESHOLD,
+	.down_threshold_asleep = DEF_ASLEEP_DOWN_THRESHOLD,
 };
 
 
@@ -181,7 +190,7 @@ static struct notifier_block dbs_cpufreq_notifier_block = {
 
 /************************** sysfs interface ************************/
 
-/* cpufreq_smartactive Governor Tunables */
+/* cpufreq_smartactivev2 Governor Tunables */
 #define show_one(file_name, object)					\
 static ssize_t show_##file_name						\
 (struct kobject *kobj, struct attribute *attr, char *buf)		\
@@ -191,11 +200,14 @@ static ssize_t show_##file_name						\
 show_one(sampling_rate, sampling_rate);
 show_one(sampling_down_factor, sampling_down_factor);
 show_one(ignore_nice_load, ignore_nice);
-show_one(up_threshold, up_threshold);
-show_one(down_threshold, down_threshold);
-show_one(active_freq_step, active_freq_step);
-show_one(up_freq_step, up_freq_step);
-show_one(down_freq_step, down_freq_step);
+show_one(up_threshold_awake, up_threshold_awake);
+show_one(down_threshold_awake, down_threshold_awake);
+show_one(up_threshold_asleep, up_threshold_asleep);
+show_one(down_threshold_asleep, down_threshold_asleep);
+show_one(up_freq_step_awake, up_freq_step_awake);
+show_one(down_freq_step_awake, down_freq_step_awake);
+show_one(up_freq_step_asleep, up_freq_step_asleep);
+show_one(down_freq_step_asleep, down_freq_step_asleep);
 
 static ssize_t store_sampling_down_factor(struct kobject *a,
 					  struct attribute *b,
@@ -257,125 +269,165 @@ static ssize_t store_ignore_nice_load(struct kobject *a, struct attribute *b,
 	}
 	return count;
 }
-static ssize_t store_active_freq_step(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
+				
+static ssize_t store_up_freq_step_awake					
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;					
+	ret = sscanf(buf, "%u", &input);		
 	if(ret != 1 || input > 100 || input < 1)
-		return -EINVAL;
-
-	dbs_tuners_ins.active_freq_step = input;
-	return count;
+		return -EINVAL;				
+	dbs_tuners_ins.up_freq_step_awake = input;	
+	return count;					
 }
-static ssize_t store_down_freq_step(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
+static ssize_t store_up_freq_step_asleep					
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;					
+	ret = sscanf(buf, "%u", &input);		
 	if(ret != 1 || input > 100 || input < 1)
-		return -EINVAL;
-
-	dbs_tuners_ins.down_freq_step = input;
-	return count;
+		return -EINVAL;				
+	dbs_tuners_ins.up_freq_step_asleep = input;	
+	return count;					
 }
-static ssize_t store_up_freq_step(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-	
+static ssize_t store_down_freq_step_awake					
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;					
+	ret = sscanf(buf, "%u", &input);		
 	if(ret != 1 || input > 100 || input < 1)
-		return -EINVAL;
-
-	dbs_tuners_ins.up_freq_step = input;
-	return count;
+		return -EINVAL;				
+	dbs_tuners_ins.down_freq_step_awake = input;	
+	return count;					
 }
-static ssize_t store_up_threshold(struct kobject *a, struct attribute *b, const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
-
-	if (ret != 1 || input > 100 ||
-			input <= dbs_tuners_ins.down_threshold)
-		return -EINVAL;
-
-	dbs_tuners_ins.up_threshold = input;
-	return count;
+static ssize_t store_down_freq_step_asleep					
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;					
+	ret = sscanf(buf, "%u", &input);		
+	if(ret != 1 || input > 100 || input < 1)
+		return -EINVAL;				
+	dbs_tuners_ins.down_freq_step_asleep = input;	
+	return count;					
 }
-static ssize_t store_down_threshold(struct kobject *a, struct attribute *b,
-				    const char *buf, size_t count)
-{
-	unsigned int input;
-	int ret;
-	ret = sscanf(buf, "%u", &input);
 
-	/* cannot be lower than 1 otherwise freq will not fall */
-	if (ret != 1 || input < 1 || input > 100 ||
-			input >= dbs_tuners_ins.up_threshold)
-		return -EINVAL;
 
-	dbs_tuners_ins.down_threshold = input;
-	return count;
+static ssize_t store_up_threshold_awake	
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;			
+	int ret;						
+	ret = sscanf(buf, "%u", &input);		
+	if(ret != 1 || input > 100 || input < 1 ||	
+	dbs_tuners_ins.down_threshold_awake < input)
+		return -EINVAL;				
+	dbs_tuners_ins.up_threshold_awake = input;	
+	return count;					
+}
+static ssize_t store_up_threshold_asleep	
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;						
+	ret = sscanf(buf, "%u", &input);		
+	if(ret != 1 || input > 100 || input < 1 ||	
+	dbs_tuners_ins.down_threshold_asleep > input)
+		return -EINVAL;				
+	dbs_tuners_ins.up_threshold_asleep = input;	
+	return count;					
+}
+static ssize_t store_down_threshold_awake	
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;						
+	ret = sscanf(buf, "%u", &input);		
+	if(ret != 1 || input > 100 || input < 1 ||	
+	dbs_tuners_ins.up_threshold_awake < input)
+		return -EINVAL;				
+	dbs_tuners_ins.down_threshold_awake = input;	
+	return count;					
+}
+static ssize_t store_down_threshold_asleep	
+(struct kobject *a, struct attribute *b, const char *buf, size_t count)				
+{								
+	unsigned int input;				
+	int ret;						
+	ret = sscanf(buf, "%u", &input);		
+	if(ret != 1 || input > 100 || input < 1 ||	
+	dbs_tuners_ins.up_threshold_asleep < input)
+		return -EINVAL;				
+	dbs_tuners_ins.down_threshold_asleep = input;	
+	return count;					
 }
 
 define_one_global_rw(sampling_rate);
 define_one_global_rw(sampling_down_factor);
 define_one_global_rw(ignore_nice_load);
-define_one_global_rw(up_threshold);
-define_one_global_rw(down_threshold);
-define_one_global_rw(active_freq_step);
-define_one_global_rw(up_freq_step);
-define_one_global_rw(down_freq_step);
+define_one_global_rw(up_threshold_awake);
+define_one_global_rw(down_threshold_awake);
+define_one_global_rw(up_threshold_asleep);
+define_one_global_rw(down_threshold_asleep);
+define_one_global_rw(up_freq_step_awake);
+define_one_global_rw(down_freq_step_awake);
+define_one_global_rw(up_freq_step_asleep);
+define_one_global_rw(down_freq_step_asleep);
 
 static struct attribute *dbs_attributes[] = {
 	&sampling_rate.attr,
 	&sampling_down_factor.attr,
 	&ignore_nice_load.attr,
-	&up_threshold.attr,
-	&down_threshold.attr,
-	&active_freq_step.attr,
-	&up_freq_step.attr,
-	&down_freq_step.attr,
+	&up_threshold_awake.attr,
+	&down_threshold_awake.attr,
+	&up_freq_step_awake.attr,
+	&down_freq_step_awake.attr,
+	&up_threshold_asleep.attr,
+	&down_threshold_asleep.attr,
+	&up_freq_step_asleep.attr,
+	&down_freq_step_asleep.attr,
 	NULL
 };
 
 static struct attribute_group dbs_attr_group = {
 	.attrs = dbs_attributes,
-	.name = "smartactive",
+	.name = "smartactivev2",
 };
 
 
 /************************** sysfs end ************************/
 
-//early suspend
-#ifdef CONFIG_EARLYSUSPEND
-static void cpufreq_smartactive_early_suspend(struct early_suspend *h)
+static void cpufreq_smartactivev2_early_suspend(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);
-	stored_sampling_rate = dbs_tuners_ins.sampling_rate;
+	up_threshold = dbs_tuners_ins.up_threshold_asleep;
+	down_threshold = dbs_tuners_ins.down_threshold_asleep;
+	up_freq_step = dbs_tuners_ins.up_freq_step_asleep;
+	down_freq_step = dbs_tuners_ins.down_freq_step_asleep;
 	is_early_suspend = 1;
-	dbs_tuners_ins.sampling_rate = stored_sampling_rate * 6;
 	mutex_unlock(&dbs_mutex);
 }
 
-static void cpufreq_smartactive_late_resume(struct early_suspend *h)
+static void cpufreq_smartactivev2_late_resume(struct early_suspend *h)
 {
 	mutex_lock(&dbs_mutex);	
-	dbs_tuners_ins.sampling_rate = stored_sampling_rate;
+	up_threshold = dbs_tuners_ins.up_threshold_awake;
+	down_threshold = dbs_tuners_ins.down_threshold_awake;
+	up_freq_step = dbs_tuners_ins.up_freq_step_awake;
+	down_freq_step = dbs_tuners_ins.down_freq_step_awake;
 	is_early_suspend = 0;
 	mutex_unlock(&dbs_mutex);
 }
 
-static struct early_suspend cpufreq_smartactive_early_suspend_info = {
-	.suspend = cpufreq_smartactive_early_suspend,
-	.resume = cpufreq_smartactive_late_resume,
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB+1,
+static struct early_suspend cpufreq_smartactivev2_early_suspend_info = {
+	.suspend = cpufreq_smartactivev2_early_suspend,
+	.resume = cpufreq_smartactivev2_late_resume,
+	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
 };
-#endif
+
 static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 {
 	unsigned int load = 0;
@@ -428,24 +480,20 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 		if (load > max_load)
 			max_load = load;
 	}
-	if(dbs_tuners_ins.up_freq_step == 0 || dbs_tuners_ins.down_freq_step == 0)
+	if(dbs_tuners_ins.up_freq_step_awake == 0 ||
+dbs_tuners_ins.up_freq_step_asleep == 0 || 
+dbs_tuners_ins.down_freq_step_awake == 0 || 
+dbs_tuners_ins.down_freq_step_asleep == 0)
 	return;
 	
 	/* Check for frequency increase */
-	if (max_load > dbs_tuners_ins.up_threshold) {
+	if (max_load > up_threshold) {
 		this_dbs_info->down_skip = 0;
-		if (policy->min == policy->cur){
-			freq_target = (dbs_tuners_ins.active_freq_step * policy->max) / 100;
-			this_dbs_info->requested_freq += freq_target;
-		if (this_dbs_info->requested_freq > policy->max)
-			this_dbs_info->requested_freq = policy->max;
-			goto setfreq;
-		}
 		/* if we are already at full speed then break out early */
 		if (this_dbs_info->requested_freq == policy->max)
 			return;
 
-		freq_target = (dbs_tuners_ins.up_freq_step * policy->max) / 100;
+		freq_target = (up_freq_step * policy->max) / 100;
 
 		/* max freq cannot be less than 100. But who knows.... */
 		if (unlikely(freq_target == 0))
@@ -462,8 +510,8 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 * can support the current CPU usage without triggering the up
 	 * policy.
 	 */
-	if (max_load < dbs_tuners_ins.down_threshold) {
-		freq_target = (dbs_tuners_ins.down_freq_step * policy->max) / 100;
+	if (max_load < down_threshold) {
+		freq_target = (down_freq_step * policy->max) / 100;
 
 		this_dbs_info->requested_freq -= freq_target;
 		if (this_dbs_info->requested_freq < policy->min)
@@ -625,11 +673,11 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
+#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVEV2
 static
 #endif
-struct cpufreq_governor cpufreq_gov_smartactive = {
-	.name			= "smartactive",
+struct cpufreq_governor cpufreq_gov_smartactivev2 = {
+	.name			= "smartactivev2",
 	.governor		= cpufreq_governor_dbs,
 	.max_transition_latency	= TRANSITION_LATENCY_LIMIT,
 	.owner			= THIS_MODULE,
@@ -638,22 +686,22 @@ struct cpufreq_governor cpufreq_gov_smartactive = {
 static int __init cpufreq_gov_dbs_init(void)
 {
 #ifdef CONFIG_EARLYSUSPEND
-	register_early_suspend(&cpufreq_smartactive_early_suspend_info);
+	register_early_suspend(&cpufreq_smartactivev2_early_suspend_info);
 #endif
-	return cpufreq_register_governor(&cpufreq_gov_smartactive);
+	return cpufreq_register_governor(&cpufreq_gov_smartactivev2);
 }
 
 static void __exit cpufreq_gov_dbs_exit(void)
 {
-	cpufreq_unregister_governor(&cpufreq_gov_smartactive);
+	cpufreq_unregister_governor(&cpufreq_gov_smartactivev2);
 }
 
 
 MODULE_AUTHOR("NewWorld <cae11cae@naver.com>");
-MODULE_DESCRIPTION("'cpufreq_smartactive' - A smartactive governor based on conservative");
+MODULE_DESCRIPTION("'cpufreq_smartactivev2' - A smartactivev2 governor based on conservative");
 MODULE_LICENSE("GPL");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
+#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_SMARTACTIVEV2
 fs_initcall(cpufreq_gov_dbs_init);
 #else
 module_init(cpufreq_gov_dbs_init);

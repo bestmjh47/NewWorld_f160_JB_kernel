@@ -121,9 +121,9 @@ config CPU_FREQ_DEFAULT_GOV_INTELLIDEMAND
 	bool "intellidemand"
 	select CPU_FREQ_GOV_INTELLIDEMAND
 
-config CPU_FREQ_DEFAULT_GOV_SMARTACTIVE
-	bool "smartactive"
-	select CPU_FREQ_GOV_SMARTACTIVE
+config CPU_FREQ_DEFAULT_GOV_SMARTACTIVEV2
+	bool "smartactivev2"
+	select CPU_FREQ_GOV_SMARTACTIVEV2
 
 config CPU_FREQ_DEFAULT_GOV_HOTPLUG
 	bool "hotplug"
@@ -251,8 +251,8 @@ config CPU_FREQ_GOV_INTELLIDEMAND
 	tristate "'intellidemand' cpufreq governor"
 	depends on CPU_FREQ
 
-config CPU_FREQ_GOV_SMARTACTIVE
-	tristate "'smartactive' cpufreq governor"
+config CPU_FREQ_GOV_SMARTACTIVEV2
+	tristate "'smartactivev2' cpufreq governor"
 	depends on CPU_FREQ
 
 config CPU_FREQ_GOV_HOTPLUG
